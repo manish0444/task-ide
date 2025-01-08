@@ -1,36 +1,120 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Modern Web-based IDE with Real-time Code Execution
 
-## Getting Started
+A powerful, modern IDE built with Next.js, featuring real-time code execution, syntax highlighting, and AI-powered code assistance.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 1. Code Editor
+- **Syntax Highlighting**: Powered by `react-syntax-highlighter` with support for multiple languages
+- **Line Numbers**: Dynamic line numbering with proper synchronization
+- **Custom Scrollbars**: Theme-aware, smooth scrolling experience
+- **Real-time Error Detection**: Instant syntax error feedback
+- **Multi-language Support**: Python, JavaScript, Java, C++, Rust, PHP, and HTML
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. WebSocket Integration
+- **Real-time Code Execution**: Connected to `wss://compiler.skillshikshya.com/ws/compiler/`
+- **Auto-reconnection**: Automatic WebSocket reconnection on disconnection
+- **Live Output**: Real-time code execution output
+- **Error Handling**: Detailed error messages with line numbers
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. AI Integration
+- **Code Generation**: AI-powered code examples using Gemini API
+- **Error Analysis**: Smart error detection and solutions
+- **Code Suggestions**: Context-aware code improvements
+- **Language-specific Examples**: Curated examples for each language
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. User Interface
+- **Modern Design**: Clean, minimal interface with smooth transitions
+- **Theme Support**: Light and dark mode with consistent styling
+- **Responsive Layout**: Adapts to different screen sizes
+- **Interactive Elements**: Smooth animations and hover effects
 
-## Learn More
+### 5. Developer Experience
+- **TypeScript Support**: Full type safety and code completion
+- **Error Prevention**: Real-time syntax checking
+- **Code Organization**: Clean component structure
+- **Best Practices**: Modern React patterns and hooks
 
-To learn more about Next.js, take a look at the following resources:
+## Technical Details
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Core Technologies
+- **Frontend**: Next.js with TypeScript
+- **Styling**: Tailwind CSS
+- **Code Highlighting**: react-syntax-highlighter
+- **WebSocket**: Native WebSocket API
+- **AI**: Google Gemini API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Code Structure
+- `/components`: React components including Editor
+- `/lib`: Utility functions and services
+- `/hooks`: Custom React hooks
+- `/contexts`: React context providers
+- `/styles`: Global styles and Tailwind config
 
-## Deploy on Vercel
+### Key Components
+1. **Editor.tsx**
+   - Main code editor component
+   - Syntax highlighting
+   - Error handling
+   - AI integration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. **WebSocket Service**
+   - Real-time code execution
+   - Error handling
+   - Auto-reconnection logic
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3. **Gemini Service**
+   - AI code generation
+   - Error analysis
+   - Code suggestions
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone [repository-url]
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables:
+   ```bash
+   GEMINI_API_KEY=your_api_key
+   ```
+
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Usage
+
+1. **Writing Code**
+   - Choose a programming language
+   - Write or paste your code
+   - Real-time syntax highlighting and error checking
+
+2. **Running Code**
+   - Click "Run" to execute
+   - See real-time output
+   - Error messages with suggestions
+
+3. **AI Assistance**
+   - Click "AI Assist" for examples
+   - Get error explanations
+   - Receive code suggestions
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+MIT License - see LICENSE file for details
