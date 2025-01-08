@@ -72,7 +72,7 @@ A powerful, modern IDE built with Next.js, featuring real-time code execution, s
 
 1. Clone the repository:
    ```bash
-   git clone [repository-url]
+   git clone https://github.com/manish0444/task-ide.git
    ```
 
 2. Install dependencies:
@@ -84,6 +84,7 @@ A powerful, modern IDE built with Next.js, featuring real-time code execution, s
    ```bash
    GEMINI_API_KEY=your_api_key
    ```
+   --need to remove the manual API integration from the gemini service
 
 4. Run the development server:
    ```bash
