@@ -48,6 +48,8 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
   const [suggestion, setSuggestion] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isOutputInteractive, setIsOutputInteractive] = useState(false)
+  const [isWaitingForInput, setIsWaitingForInput] = useState(false)
+  const [inputBuffer, setInputBuffer] = useState('')
   const { toast } = useToast()
   const { theme, themeConfig } = useTheme()
   const [ws, setWs] = useState<WebSocket | null>(null)
@@ -101,10 +103,22 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
           console.log('Received message:', data)
 
           if (data.type === 'stdout') {
-            setOutput(prev => prev + data.data)
+            if (data.data.includes('Invalid input') || data.data.includes('Enter your guess')) {
+              // Don't duplicate the prompt if we're already showing it
+              if (!output.endsWith(data.data)) {
+                setOutput(prev => prev + data.data)
+              }
+            } else {
+              setOutput(prev => prev + data.data)
+            }
             setError(null)
             setSuggestion(null)
-            setIsOutputInteractive(data.data.includes('input'))
+            
+            // Check if the output is waiting for input
+            const lastLine = data.data.trim()
+            const isPrompt = lastLine.endsWith(':') || lastLine.endsWith('?')
+            setIsWaitingForInput(isPrompt)
+            setIsOutputInteractive(isPrompt)
           } else if (data.type === 'stderr') {
             const errorMsg = data.data
             setError(errorMsg)
@@ -241,14 +255,29 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
   }
 
   const handleOutputInteraction = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && ws?.readyState === WebSocket.OPEN) {
+    if (e.key === 'Enter' && ws?.readyState === WebSocket.OPEN && isWaitingForInput) {
+      e.preventDefault()
       const input = (e.target as HTMLTextAreaElement).value.trim()
-      ws.send(JSON.stringify({
-        command: 'input',
-        input: input + '\n'
-      }))
-      setOutput(prev => prev + input + '\n')
-      ;(e.target as HTMLTextAreaElement).value = ''
+      
+      if (input) {
+        // Store the input in buffer to prevent echo
+        setInputBuffer(input)
+        
+        // Send input to WebSocket
+        ws.send(JSON.stringify({
+          command: 'input',
+          input: input + '\n'
+        }))
+        
+        // Clear the input field
+        ;(e.target as HTMLTextAreaElement).value = ''
+        
+        // Add input to output display
+        setOutput(prev => prev + input + '\n')
+        
+        // Reset waiting state
+        setIsWaitingForInput(false)
+      }
     }
   }
 
@@ -496,9 +525,18 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
                   color: themeConfig.foreground
                 }}
                 value={output}
-                onChange={(e) => setOutput(e.target.value)}
+                onChange={(e) => {
+                  // Only allow changes to the last line when waiting for input
+                  if (isWaitingForInput) {
+                    const lines = output.split('\n')
+                    const newLines = e.target.value.split('\n')
+                    if (lines.length === newLines.length) {
+                      lines[lines.length - 1] = newLines[newLines.length - 1]
+                      setOutput(lines.join('\n'))
+                    }
+                  }
+                }}
                 onKeyDown={handleOutputInteraction}
-                placeholder="Type your input here..."
                 spellCheck={false}
               />
             ) : (

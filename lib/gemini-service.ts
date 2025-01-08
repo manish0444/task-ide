@@ -134,13 +134,20 @@ export async function generateCode(language: string) {
 
     const template = languageTemplates[language as keyof typeof languageTemplates]
     const examples = {
-      python: 'Create a number guessing game where the computer picks a random number and the user tries to guess it, with hints for "too high" or "too low"',
-      javascript: 'Create a todo list manager with add, remove, and mark-as-complete functionality, storing tasks in an array',
-      html: 'Create a responsive contact form with name, email, message fields, and proper validation',
-      java: 'Create a simple bank account system with deposit, withdraw, and balance check methods',
-      cpp: 'Create a student grade calculator that takes marks in different subjects and calculates total, average, and grade',
-      rust: 'Create a command-line file organizer that lists files in a directory with their sizes',
-      php: 'Create a simple blog post system with create and read functionality'
+      python: 'Create a number guessing game where the computer picks a random number between 1 and 100. The user guesses, and the program provides hints like "too high" or "too low." After the game ends, display a message like "Thanks for playing! The correct number was [X]."',
+
+      javascript: 'Create a todo list manager in the terminal. Users can add tasks, remove tasks, and mark tasks as complete. After each operation, display the current list and a message like "Task successfully updated!"',
+      
+      html: 'Create a responsive todo app where users can add, mark as complete, and delete tasks. Show a message like "Todo added!" or "Task deleted!" after every action, displayed dynamically on the page.',
+      
+      java: 'Create a simple bank account system in the terminal with methods for deposit, withdraw, and balance check. After every transaction, print the current balance with a message like "Your updated balance is: $[X]."',
+      
+      cpp: 'Create a student grade calculator that takes marks for five subjects, calculates the total, average, and grade, and prints a formatted result like "Your total is [X], average is [Y], and grade is [Z]. Great job!"',
+      
+      rust: 'Create a command-line file organizer that lists files in a directory with their sizes. After organizing or listing files, print a message like "Files successfully listed! [Count] files found."',
+      
+      php: 'Create a simple blog post system where users can create and view blog posts. After creating a post, print a message like "Your blog post [Title] has been successfully created!"',
+      
     }
 
     const prompt = `
