@@ -7,6 +7,7 @@ import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { getCodeSuggestion, generateCode } from '@/lib/gemini-service'
 import ReactMarkdown from 'react-markdown'
 import { Loader2 } from 'lucide-react'
+import { Button } from './ui/button'
 
 interface SupportedLanguage {
   id: string;
@@ -46,16 +47,17 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
   const [error, setError] = useState<string | null>(null)
   const [suggestion, setSuggestion] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isOutputInteractive, setIsOutputInteractive] = useState(false)
   const { toast } = useToast()
   const { theme, themeConfig } = useTheme()
   const [ws, setWs] = useState<WebSocket | null>(null)
-  const [lineCount, setLineCount] = useState(1)
+ 
   const editorRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const outputRef = useRef<HTMLTextAreaElement>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
 
   const handleBracketMatching = useCallback((value: string): string | null => {
- 
     const stack: BracketPair[] = []
     
     for (const char of value) {
@@ -102,12 +104,13 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
             setOutput(prev => prev + data.data)
             setError(null)
             setSuggestion(null)
+            setIsOutputInteractive(data.data.includes('input'))
           } else if (data.type === 'stderr') {
             const errorMsg = data.data
             setError(errorMsg)
             onRunStateChange(false)
+            setIsOutputInteractive(false)
 
-            // Get code suggestion from Gemini
             const suggestion = await getCodeSuggestion(code, errorMsg, currentLanguage)
             if (suggestion) {
               setSuggestion(suggestion)
@@ -132,7 +135,6 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
         console.log('WebSocket connection closed')
         setWs(null)
         onRunStateChange(false)
-        // Try to reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000)
       }
 
@@ -160,7 +162,6 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
         return
       }
 
-      // For HTML, just preview
       if (!lang.compile) {
         setOutput(code)
         setError(null)
@@ -196,23 +197,6 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
     return () => textarea.removeEventListener('scroll', syncScroll)
   }, [])
 
-  // Improved scrollbar styles with better specificity
-  const editorScrollbarStyles = {
-    scrollbarWidth: 'thin',
-    scrollbarColor: 'var(--scrollbar-thumb) transparent',
-    '&::-webkit-scrollbar': {
-      width: '8px',
-      height: '8px'
-    },
-    '&::-webkit-scrollbar-track': {
-      background: 'transparent'
-    },
-    '&::-webkit-scrollbar-thumb': {
-      backgroundColor: 'var(--scrollbar-thumb)',
-      borderRadius: '4px'
-    }
-  } as const
-
   useEffect(() => {
     if (currentLanguage === 'html') {
       try {
@@ -225,37 +209,20 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
     }
   }, [code, currentLanguage])
 
-  useEffect(() => {
-    const lines = code.split('\n').length
-    setLineCount(Math.max(lines, 30)) // minimum 30 lines
-  }, [code])
-
   const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const textarea = e.target
     const value = textarea.value
     const selectionStart = textarea.selectionStart
     
     setCode(value)
-
-    // Preserve cursor position
+    
     requestAnimationFrame(() => {
       textarea.selectionStart = selectionStart
       textarea.selectionEnd = selectionStart
     })
     
-    // Sync scroll between textarea and syntax highlighter
-    if (editorRef.current) {
-      const syntaxHighlighter = editorRef.current.querySelector('pre')
-      if (syntaxHighlighter) {
-        syntaxHighlighter.scrollTop = textarea.scrollTop
-        syntaxHighlighter.scrollLeft = textarea.scrollLeft
-      }
-    }
-
-    // Check for syntax errors in real-time
     if (value.trim() && currentLanguage !== 'html') {
       try {
-        // Basic syntax check based on language
         if (currentLanguage === 'python' && !value.match(/^[ ]*$/m)) {
           const indentation = value.match(/^[ ]*/gm)
           if (indentation && indentation.some(i => i.length % 4 !== 0)) {
@@ -273,10 +240,23 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
     }
   }
 
+  const handleOutputInteraction = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && ws?.readyState === WebSocket.OPEN) {
+      const input = (e.target as HTMLTextAreaElement).value.trim()
+      ws.send(JSON.stringify({
+        command: 'input',
+        input: input + '\n'
+      }))
+      setOutput(prev => prev + input + '\n')
+      ;(e.target as HTMLTextAreaElement).value = ''
+    }
+  }
+
   const handleClear = () => {
     setOutput('')
     setError(null)
     setSuggestion(null)
+    setIsOutputInteractive(false)
   }
 
   const handleCopy = (text: string) => {
@@ -312,16 +292,20 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
   }
 
   return (
-    <div className="grid flex-1 grid-cols-2 gap-4">
-      <div className="flex flex-col rounded-lg overflow-hidden" 
+    <div className="grid flex-1 grid-cols-2 gap-4 h-full">
+      <div className="flex flex-col rounded-lg overflow-hidden h-full" 
         style={{ 
-          backgroundColor: theme === 'light' ? '#ffffff' : '#1E1E1E',
+          backgroundColor: themeConfig.editorBackground,
           border: `1px solid ${theme === 'light' ? '#E0E0E0' : '#2D2D2D'}`,
         }}>
-        <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D' }}>
+        <div className="flex-none flex items-center justify-between px-4 py-2 border-b" 
+          style={{ 
+            borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D',
+            backgroundColor: themeConfig.background,
+          }}>
           <div className="flex items-center gap-3">
             <div className={`h-2.5 w-2.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-            <span className="text-sm font-medium" style={{ color: theme === 'light' ? '#24292E' : '#E1E4E8' }}>
+            <span className="text-sm font-medium" style={{ color: themeConfig.foreground }}>
               {isRunning ? 'Running Code...' : 'Ready to Run'}
             </span>
           </div>
@@ -331,70 +315,105 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
               className="flex h-7 items-center gap-1 rounded px-3 text-xs font-medium transition-all"
               style={{ 
                 backgroundColor: theme === 'light' ? '#F3F4F6' : '#2D2D2D',
-                color: theme === 'light' ? '#24292E' : '#E1E4E8'
+                color: themeConfig.foreground
               }}
             >
               Copy Code
             </button>
-            <button
+            <Button
               onClick={handleGenerateCode}
               disabled={isGenerating}
-              className="flex h-7 items-center gap-1 rounded px-3 text-xs font-medium text-white transition-all disabled:opacity-50"
-              style={{ backgroundColor: '#0366D6' }}
+              className="relative h-8 px-6 text-sm font-medium text-white overflow-hidden group rounded transition-all disabled:opacity-50"
+              style={{
+                background: 'linear-gradient(45deg, #FF3366, #FF6B6B, #4834D4, #686DE0)',
+                backgroundSize: '300% 300%',
+                animation: 'gradient 5s ease infinite',
+              }}
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Generating...</span>
-                </>
-              ) : (
-                <>
-                  <span className="animate-pulse">✨</span>
-                  <span>AI Assist</span>
-                </>
-              )}
-            </button>
+              <style jsx global>{`
+                @keyframes gradient {
+                  0% {
+                    background-position: 0% 50%;
+                  }
+                  50% {
+                    background-position: 100% 50%;
+                  }
+                  100% {
+                    background-position: 0% 50%;
+                  }
+                }
+                @keyframes shine {
+                  from {
+                    transform: translateX(-100%) rotate(45deg);
+                  }
+                  to {
+                    transform: translateX(100%) rotate(45deg);
+                  }
+                }
+              `}</style>
+              <div
+                className="absolute inset-0 bg-white/30 group-hover:animate-[shine_1s_ease-in-out]"
+                style={{
+                  clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0% 100%)',
+                }}
+              />
+              <span className="relative z-10 flex items-center gap-1">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="animate-pulse">✨</span>
+                    <span>AI Assist</span>
+                  </>
+                )}
+              </span>
+            </Button>
           </div>
         </div>
         
         <div 
           ref={editorRef}
-          className="relative flex-1"
+          className="flex-1 relative"
           style={{
-            backgroundColor: theme === 'light' ? '#ffffff' : '#1E1E1E',
+            backgroundColor: themeConfig.editorBackground,
           }}
         >
-          <div className="absolute inset-0 flex h-full">
+          <div className="absolute inset-0 flex">
             <div 
-              className="w-[50px] flex-none border-r py-3 text-right"
+              className="w-[50px] flex-none border-r"
               style={{ 
                 borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D',
-                backgroundColor: theme === 'light' ? '#F6F8FA' : '#252526'
+                backgroundColor: theme === 'light' ? '#F6F8FA' : themeConfig.sidebarBackground,
+                color: themeConfig.foreground
               }}
             >
-              {Array.from({ length: Math.max(lineCount, 30) }).map((_, i) => (
-                <div 
-                  key={i} 
-                  className="px-2 text-xs leading-6"
-                  style={{ 
-                    color: theme === 'light' ? '#6E7781' : '#6E7681',
-                  }}
-                >
-                  {i + 1}
-                </div>
-              ))}
+              <div className="py-3 text-right">
+                {code.split('\n').map((_, i) => (
+                  <div 
+                    key={i} 
+                    className="px-2 text-xs leading-6"
+                    style={{ 
+                      color: theme === 'light' ? '#6E7781' : '#6E7681',
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
             </div>
             
-            <div className="relative flex-1">
+            <div className="flex-1 relative">
               <textarea
                 ref={textareaRef}
                 value={code}
                 onChange={handleCodeChange}
-                className="absolute inset-0 h-full w-full resize-none bg-transparent p-3 font-mono text-sm leading-6 outline-none"
+                className="absolute inset-0 resize-none bg-transparent p-3 font-mono text-sm leading-6 outline-none overflow-auto"
                 style={{ 
                   color: 'transparent',
-                  caretColor: theme === 'light' ? '#24292E' : '#E1E4E8',
-                  ...editorScrollbarStyles
+                  caretColor: themeConfig.foreground,
                 }}
                 placeholder={`Write your ${currentLanguage.toUpperCase()} code here...`}
                 spellCheck={false}
@@ -411,9 +430,16 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
                   fontSize: '0.875rem',
                   lineHeight: '1.5rem',
                   pointerEvents: 'none',
-                  overflow: 'hidden'
+                  color: themeConfig.foreground,
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'auto'
                 }}
-                wrapLines={true}
+                codeTagProps={{
+                  style: {
+                    color: themeConfig.foreground,
+                  }
+                }}
               >
                 {code || ' '}
               </SyntaxHighlighter>
@@ -422,13 +448,17 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
         </div>
       </div>
       
-      <div className="flex flex-col rounded-lg overflow-hidden" 
+      <div className="flex flex-col rounded-lg overflow-hidden h-full" 
         style={{ 
-          backgroundColor: theme === 'light' ? '#ffffff' : '#1E1E1E',
+          backgroundColor: themeConfig.editorBackground,
           border: `1px solid ${theme === 'light' ? '#E0E0E0' : '#2D2D2D'}`,
         }}>
-        <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D' }}>
-          <span className="text-sm font-medium" style={{ color: theme === 'light' ? '#24292E' : '#E1E4E8' }}>
+        <div className="flex-none flex items-center justify-between px-4 py-2 border-b" 
+          style={{ 
+            borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D',
+            backgroundColor: themeConfig.background
+          }}>
+          <span className="text-sm font-medium" style={{ color: themeConfig.foreground }}>
             {error ? 'Error Output' : 'Code Output'}
           </span>
           <div className="flex gap-2">
@@ -437,7 +467,7 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
               className="flex h-7 items-center gap-1 rounded px-3 text-xs font-medium transition-all"
               style={{ 
                 backgroundColor: theme === 'light' ? '#F3F4F6' : '#2D2D2D',
-                color: theme === 'light' ? '#24292E' : '#E1E4E8'
+                color: themeConfig.foreground
               }}
             >
               Copy
@@ -447,7 +477,7 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
               className="flex h-7 items-center gap-1 rounded px-3 text-xs font-medium transition-all"
               style={{ 
                 backgroundColor: theme === 'light' ? '#F3F4F6' : '#2D2D2D',
-                color: theme === 'light' ? '#24292E' : '#E1E4E8'
+                color: themeConfig.foreground
               }}
             >
               Clear
@@ -455,47 +485,49 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
           </div>
         </div>
         
-        <div className="flex flex-1 flex-col">
-          <div 
-            className="h-full"
-            style={{ 
-              backgroundColor: error 
-                ? theme === 'light' ? '#FFF5F5' : '#2D2226'
-                : theme === 'light' ? '#ffffff' : '#1E1E1E'
-            }}
-          >
-            <div 
-              className="h-full w-full p-4 overflow-auto"
-              style={{
-                ...editorScrollbarStyles
-              }}
-            >
-              {currentLanguage === 'html' ? (
-                <div 
-                  className="h-full w-full"
-                  dangerouslySetInnerHTML={{ __html: output }}
-                />
-              ) : (
-                <pre 
-                  className="font-mono text-sm leading-6"
-                  style={{ 
-                    color: error 
-                      ? theme === 'light' ? '#DC2626' : '#F87171'
-                      : theme === 'light' ? '#24292E' : '#E1E4E8',
-                    whiteSpace: 'pre-wrap'
-                  }}
-                >
-                  {error || output || 'No output yet...'}
-                </pre>
-              )}
-            </div>
+        <div className="flex-1 flex flex-col relative">
+          <div className="absolute inset-0">
+            {isOutputInteractive ? (
+              <textarea
+                ref={outputRef}
+                className="h-full w-full resize-none p-4 font-mono text-sm leading-6 outline-none overflow-auto"
+                style={{
+                  backgroundColor: 'transparent',
+                  color: themeConfig.foreground
+                }}
+                value={output}
+                onChange={(e) => setOutput(e.target.value)}
+                onKeyDown={handleOutputInteraction}
+                placeholder="Type your input here..."
+                spellCheck={false}
+              />
+            ) : (
+              <div className="h-full overflow-auto">
+                {currentLanguage === 'html' ? (
+                  <div 
+                    className="h-full w-full"
+                    dangerouslySetInnerHTML={{ __html: output }}
+                  />
+                ) : (
+                  <pre 
+                    className="h-full w-full p-4 font-mono text-sm leading-6"
+                    style={{ 
+                      color: error 
+                        ? theme === 'light' ? '#DC2626' : '#F87171'
+                        : themeConfig.foreground,
+                      whiteSpace: 'pre-wrap',
+                      backgroundColor: 'transparent'
+                    }}
+                  >
+                    {error || output || 'No output yet...'}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
           {suggestion && (
-            <div className="flex-1 rounded-lg border border-[#2D2D2D] bg-blue-500/5">
-              <div 
-                className="h-full w-full overflow-auto p-4 prose prose-sm dark:prose-invert max-w-none"
-                style={editorScrollbarStyles }
-              >
+            <div className="mt-auto border-t flex-none" style={{ borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D' }}>
+              <div className="p-4 prose prose-sm max-w-none">
                 <ReactMarkdown>{suggestion}</ReactMarkdown>
               </div>
             </div>
