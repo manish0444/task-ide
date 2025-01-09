@@ -116,6 +116,3 @@ A powerful, modern IDE built with Next.js, featuring real-time code execution, s
 4. Push to the branch
 5. Create a Pull Request
 
-## License
-
-MIT License - see LICENSE file for details
