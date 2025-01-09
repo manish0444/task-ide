@@ -33,16 +33,16 @@ export default function CodeEditorPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#1E1E1E] text-white">
-      <Sidebar 
+    <div className="flex flex-col h-screen bg-[#1E1E1E] text-white">
+      <Header 
+        onRun={handleRun}
+        onStop={handleStop}
+        isRunning={isRunning}
         currentLanguage={currentLanguage}
         onLanguageChange={handleLanguageChange}
       />
-      <div className="flex flex-1 flex-col">
-        <Header 
-          onRun={handleRun}
-          onStop={handleStop}
-          isRunning={isRunning}
+      <div className="flex flex-1">
+        <Sidebar 
           currentLanguage={currentLanguage}
           onLanguageChange={handleLanguageChange}
         />

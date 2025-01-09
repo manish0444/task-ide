@@ -16,9 +16,10 @@ type SidebarProps = {
 
 export function Sidebar({ currentLanguage, onLanguageChange }: SidebarProps) {
   return (
-    <aside className="flex w-16 flex-col items-center justify-between border-r border-[#2D2D2D] bg-[#1E1E1E] py-4 h-screen">
+    <aside className="flex w-16 flex-col items-center bg-[#1E1E1E] py-4">
+      
       <TooltipProvider>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 flex-1">
           {languages.map((lang) => (
             <Tooltip key={lang.id}>
               <TooltipTrigger asChild>
@@ -48,7 +49,7 @@ export function Sidebar({ currentLanguage, onLanguageChange }: SidebarProps) {
           ))}
         </div>
       </TooltipProvider>
-      <div className="text-xs text-gray-500">MANISH</div>
+      <div className="text-xs text-gray-500 mt-4">MANISH</div>
     </aside>
   )
 }

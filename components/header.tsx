@@ -23,24 +23,22 @@ type HeaderProps = {
   onLanguageChange: (lang: string) => void
 }
 
-export function Header({ 
-  onRun, 
-  onStop, 
-  isRunning, 
+export function Header({
+  onRun,
+  onStop,
+  isRunning,
   currentLanguage,
-  onLanguageChange 
+  onLanguageChange
 }: HeaderProps) {
   const { theme, setTheme } = useTheme()
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-[#2D2D2D] bg-[#1E1E1E] px-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <div className="relative h-8 w-8">
-            <Image src="/logo.svg" alt="Code Runner" fill className="object-contain" />
-          </div>
-          <h1 className="text-lg font-semibold text-white">Code Runner</h1>
+    <header className="flex h-14 items-center justify-between bg-[#1E1E1E] px-4">
+      <div className="flex items-center gap-2 ml-12">
+        <div className="relative h-8 w-8">
+          <Image src="/logo.svg" alt="Code Runner" fill className="object-contain" />
         </div>
+        <h1 className="text-lg font-semibold text-white">Code Runner</h1>
       </div>
       
       <div className="flex items-center gap-4">
