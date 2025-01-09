@@ -50,6 +50,10 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
   const [isOutputInteractive, setIsOutputInteractive] = useState(false)
   const [isWaitingForInput, setIsWaitingForInput] = useState(false)
   const [inputBuffer, setInputBuffer] = useState('')
+  const [needsInput, setNeedsInput] = useState(false)
+  const [userInput, setUserInput] = useState('')
+  const [pendingInputs, setPendingInputs] = useState<string[]>([])
+  const [inputPrompt, setInputPrompt] = useState('')
   const { toast } = useToast()
   const { theme, themeConfig } = useTheme()
   const [ws, setWs] = useState<WebSocket | null>(null)
@@ -57,6 +61,7 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
   const editorRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const outputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
 
   const handleBracketMatching = useCallback((value: string): string | null => {
@@ -103,37 +108,45 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
           console.log('Received message:', data)
 
           if (data.type === 'stdout') {
-            if (data.data.includes('Invalid input') || data.data.includes('Enter your guess')) {
-              // Don't duplicate the prompt if we're already showing it
-              if (!output.endsWith(data.data)) {
-                setOutput(prev => prev + data.data)
-              }
-            } else {
-              setOutput(prev => prev + data.data)
-            }
-            setError(null)
-            setSuggestion(null)
-            
-            // Check if the output is waiting for input
-            const lastLine = data.data.trim()
-            const isPrompt = lastLine.endsWith(':') || lastLine.endsWith('?')
-            setIsWaitingForInput(isPrompt)
-            setIsOutputInteractive(isPrompt)
+            processOutput(data.data)
           } else if (data.type === 'stderr') {
             const errorMsg = data.data
             setError(errorMsg)
-            onRunStateChange(false)
-            setIsOutputInteractive(false)
+            
+            // Check if it's a compilation/syntax error
+            const isCompilationError = errorMsg.toLowerCase().includes('error') ||
+                                     errorMsg.toLowerCase().includes('exception') ||
+                                     errorMsg.toLowerCase().includes('failed')
+            
+            if (isCompilationError) {
+              setNeedsInput(false)
+              onRunStateChange(false)
+              
+              // Get language-specific error analysis
+              const suggestion = await getCodeSuggestion(code, errorMsg, currentLanguage)
+              if (suggestion) {
+                setSuggestion(suggestion)
+              } else {
+                // If error analysis fails, show a helpful message
+                setSuggestion(`# Error in ${currentLanguage} code
 
-            const suggestion = await getCodeSuggestion(code, errorMsg, currentLanguage)
-            if (suggestion) {
-              setSuggestion(suggestion)
+The code encountered an error. Here's what you can try:
+
+1. Check syntax: Ensure your code follows ${currentLanguage} syntax rules
+2. Verify imports: Make sure all required libraries are imported
+3. Check variable names and types
+4. Look for missing brackets or semicolons
+5. Ensure proper indentation
+
+Error message:
+${errorMsg}
+
+Need help? Try the AI Assist button for a working example.`)
+              }
             }
-          } else if (data.type === 'run' && data.message === 'your message has receive') {
-            toast({
-              title: "Code execution started",
-              description: "Your code is now running..."
-            })
+          } else if (data.type === 'input') {
+            // Echo received input in output
+            setOutput(prev => prev + data.input_data)
           }
         } catch (err) {
           console.error('Error parsing WebSocket message:', err)
@@ -266,7 +279,7 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
         // Send input to WebSocket
         ws.send(JSON.stringify({
           command: 'input',
-          input: input + '\n'
+          data: input + '\n'
         }))
         
         // Clear the input field
@@ -317,6 +330,70 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
       })
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const handleInputSubmit = (input: string) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      // For C++ and other languages that expect space-separated inputs
+      if (currentLanguage === 'cpp' || currentLanguage === 'java' || currentLanguage === 'csharp') {
+        const inputs = input.split(/\s+/).filter(Boolean)
+        if (inputs.length > 0) {
+          // Send all inputs with a newline
+          ws.send(JSON.stringify({
+            command: "input",
+            input: input + "\n"
+          }))
+          setUserInput('')
+          setNeedsInput(false)
+        }
+      } else {
+        // For languages that expect one input at a time
+        ws.send(JSON.stringify({
+          command: "input",
+          input: input + "\n"
+        }))
+        setUserInput('')
+        setNeedsInput(false)
+      }
+    }
+  }
+
+  const processOutput = (data: string) => {
+    setOutput(prev => prev + data)
+    
+    // Check for input prompts in different languages
+    const lastLine = data.trim()
+    
+    // Language-specific input patterns
+    const inputPatterns = {
+      python: [/input\(.*\)/, /\w+\s*[=]\s*input\(.*\)/, /[>:?]\s*$/],
+      javascript: [/prompt\(.*\)/, /readline\(.*\)/, /[>:?]\s*$/],
+      cpp: [/cin\s*>>/, /scanf\(.*\)/, /[>:?]\s*$/, /Enter.*:/i],
+      java: [/scanner\.next.*\(.*\)/, /readLine\(.*\)/, /[>:?]\s*$/, /Enter.*:/i],
+      csharp: [/Console\.Read.*\(.*\)/, /[>:?]\s*$/, /Enter.*:/i],
+      general: [
+        /(?:enter|type|input)\s*(?:a|an|the|your)?\s*(?:number|value|name|text).*[:>?]\s*$/i,
+        /(?:number|value|name|text).*[:>?]\s*$/i,
+        /[>:?]\s*$/
+      ]
+    }
+
+    const patterns = [
+      ...(inputPatterns[currentLanguage as keyof typeof inputPatterns] || []),
+      ...inputPatterns.general
+    ]
+    
+    const needsInputNow = patterns.some(pattern => pattern.test(lastLine))
+    
+    if (needsInputNow) {
+      setNeedsInput(true)
+      setInputPrompt(lastLine)
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+        }
+      }, 50)
     }
   }
 
@@ -439,7 +516,7 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
                 ref={textareaRef}
                 value={code}
                 onChange={handleCodeChange}
-                className="absolute inset-0 resize-none bg-transparent p-3 font-mono text-sm leading-6 outline-none overflow-auto"
+                className="absolute inset-0 resize-none bg-transparent p-3 font-mono text-sm leading-6"
                 style={{ 
                   color: 'transparent',
                   caretColor: themeConfig.foreground,
@@ -448,7 +525,6 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
                 spellCheck={false}
                 wrap="off"
               />
-              
               <SyntaxHighlighter
                 language={supportedLanguages[currentLanguage]?.id || 'text'}
                 style={theme === 'light' ? vs : vscDarkPlus}
@@ -516,37 +592,14 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
         
         <div className="flex-1 flex flex-col relative">
           <div className="absolute inset-0">
-            {isOutputInteractive ? (
-              <textarea
-                ref={outputRef}
-                className="h-full w-full resize-none p-4 font-mono text-sm leading-6 outline-none overflow-auto"
-                style={{
-                  backgroundColor: 'transparent',
-                  color: themeConfig.foreground
-                }}
-                value={output}
-                onChange={(e) => {
-                  // Only allow changes to the last line when waiting for input
-                  if (isWaitingForInput) {
-                    const lines = output.split('\n')
-                    const newLines = e.target.value.split('\n')
-                    if (lines.length === newLines.length) {
-                      lines[lines.length - 1] = newLines[newLines.length - 1]
-                      setOutput(lines.join('\n'))
-                    }
-                  }
-                }}
-                onKeyDown={handleOutputInteraction}
-                spellCheck={false}
-              />
-            ) : (
-              <div className="h-full overflow-auto">
-                {currentLanguage === 'html' ? (
-                  <div 
-                    className="h-full w-full"
-                    dangerouslySetInnerHTML={{ __html: output }}
-                  />
-                ) : (
+            <div className="h-full overflow-auto">
+              {currentLanguage === 'html' ? (
+                <div 
+                  className="h-full w-full"
+                  dangerouslySetInnerHTML={{ __html: output }}
+                />
+              ) : (
+                <div className="relative h-full">
                   <pre 
                     className="h-full w-full p-4 font-mono text-sm leading-6"
                     style={{ 
@@ -554,14 +607,45 @@ export function Editor({ isRunning, onRunStateChange, currentLanguage }: EditorP
                         ? theme === 'light' ? '#DC2626' : '#F87171'
                         : themeConfig.foreground,
                       whiteSpace: 'pre-wrap',
-                      backgroundColor: 'transparent'
+                      backgroundColor: 'transparent',
+                      paddingBottom: needsInput ? '60px' : '16px'
                     }}
                   >
                     {error || output || 'No output yet...'}
                   </pre>
-                )}
-              </div>
-            )}
+                  {needsInput && (
+                    <div 
+                      className="absolute bottom-0 left-0 right-0 p-4 bg-inherit border-t border-current"
+                    >
+                      <div className="mb-2 text-sm opacity-70">
+                        {currentLanguage === 'cpp' || currentLanguage === 'java' || currentLanguage === 'csharp' 
+                          ? "Enter all values separated by spaces"
+                          : "Enter your input"}
+                      </div>
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={userInput}
+                        onChange={(e) => setUserInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleInputSubmit(userInput)
+                          }
+                        }}
+                        className="w-full bg-transparent border-b border-current outline-none font-mono text-sm p-1"
+                        autoFocus
+                        placeholder={
+                          currentLanguage === 'cpp' || currentLanguage === 'java' || currentLanguage === 'csharp'
+                            ? "Enter all values separated by spaces..."
+                            : "Enter your input..."
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           {suggestion && (
             <div className="mt-auto border-t flex-none" style={{ borderColor: theme === 'light' ? '#E0E0E0' : '#2D2D2D' }}>

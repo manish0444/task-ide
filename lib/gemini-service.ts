@@ -134,19 +134,19 @@ export async function generateCode(language: string) {
 
     const template = languageTemplates[language as keyof typeof languageTemplates]
     const examples = {
-      python: 'Create a number guessing game where the computer picks a random number between 1 and 100. The user guesses, and the program provides hints like "too high" or "too low." After the game ends, display a message like "Thanks for playing! The correct number was [X]."',
+      python: 'Write a number guessing game where the computer picks a random number between 1 and 100. The user guesses, and the program provides hints like "too high" or "too low." After the game ends, display a message like "Thanks for playing! The correct number was [X]."',
 
-      javascript: 'Create a todo list manager in the terminal. Users can add tasks, remove tasks, and mark tasks as complete. After each operation, display the current list and a message like "Task successfully updated!"',
+      javascript: 'Write a JavaScript program that prompts the user for their name, trims whitespace, and prints a personalized greeting like "Hello, [Name]! Welcome."',
       
-      html: 'Create a responsive todo app where users can add, mark as complete, and delete tasks. Show a message like "Todo added!" or "Task deleted!" after every action, displayed dynamically on the page.',
+      html: 'Create an HTML structure for a blog card that includes an image, a title, a short description, and a "Read More" button. Use semantic elements and classes for styling.',
       
-      java: 'Create a simple bank account system in the terminal with methods for deposit, withdraw, and balance check. After every transaction, print the current balance with a message like "Your updated balance is: $[X]."',
+      java: 'Write a Java program that prompts the user for their name, trims whitespace, and prints a personalized greeting like "Hello, [Name]! Nice to meet you."', 
       
-      cpp: 'Create a student grade calculator that takes marks for five subjects, calculates the total, average, and grade, and prints a formatted result like "Your total is [X], average is [Y], and grade is [Z]. Great job!"',
+      cpp: 'Write a student grade calculator in C++ that takes marks for five subjects, calculates the total, average, and grade, and prints a formatted result like "Your total is [X], average is [Y], and grade is [Z]. Great job!"', 
       
-      rust: 'Create a command-line file organizer that lists files in a directory with their sizes. After organizing or listing files, print a message like "Files successfully listed! [Count] files found."',
+      rust: 'Write a Rust program that prompts the user for their name, trims whitespace, and prints a personalized greeting like "Hello, [Name]! It\'s great to meet you."',  
       
-      php: 'Create a simple blog post system where users can create and view blog posts. After creating a post, print a message like "Your blog post [Title] has been successfully created!"',
+      php: 'Write a PHP program that prompts the user for their name, trims whitespace, and prints a personalized greeting like "Hi, [Name]! Welcome to our site."', 
       
     }
 
